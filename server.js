@@ -4,11 +4,18 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { apiKeyMiddleware, startApiKeyRefresher } from './apiKeyAuth.js';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// New env for API key path (separate from your demo KV_PATH)
+const APIKEY_KV_MOUNT = process.env.APIKEY_KV_MOUNT || 'kv';
+const APIKEY_KV_PATH  = process.env.APIKEY_KV_PATH  || 'booklib/api-auth';
+const APIKEY_FIELD    = process.env.APIKEY_FIELD    || 'password';
+const APIKEY_CIPHER_FIELD = process.env.APIKEY_CIPHER_FIELD || 'ciphertext';
 
 /* ---------------- Logging ---------------- */
 const LOG_LEVEL = (process.env.LOG_LEVEL || 'INFO').toUpperCase();
@@ -83,6 +90,12 @@ if (METHOD === 'AXIOS') {
   log('INFO', 'Vault client using VAULT fetch');
 }
 
+// Dedicated KV reader for the API key path
+async function readApiKeyKvRaw() {
+  const data = await vaultFetch(`/v1/${APIKEY_KV_MOUNT}/data/${APIKEY_KV_PATH}`);
+  return data.data; // { data, metadata }
+}
+
 /* ---------------- Vault helpers ---------------- */
 async function readKvRaw() {
   // KV v2 GET: /v1/<mount>/data/<path>
@@ -98,7 +111,22 @@ async function transitDecrypt(ciphertext) {
   return Buffer.from(b64, 'base64').toString('utf8');
 }
 
+// AFTER your helpers (readKvRaw, transitDecrypt, etc.) and BEFORE routes, start the refresher:
+startApiKeyRefresher({
+  readApiKeyKvRaw,
+  transitDecrypt,               // reuse from your server.js
+  APIKEY_FIELD,
+  APIKEY_CIPHER_FIELD,
+  TRANSIT_KEY,
+  log                           // reuse your log()
+});
+
 /* ---------------- Routes ---------------- */
+// Example protected route
+app.get('/protected', apiKeyMiddleware, (_req, res) => {
+  res.json({ ok: true, msg: 'You passed API key auth.' });
+});
+
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/secret', async (_req, res) => {
