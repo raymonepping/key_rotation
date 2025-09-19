@@ -1,0 +1,46 @@
+# Node modules (already handled in the Dockerfile)
+node_modules
+
+# Logs
+logs
+*.log
+
+# dotenv environment files
+.env
+.env.local
+.env.docker
+.env.development
+.env.production
+.env.test
+
+# Docker and CI artifacts
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Tests and Coverage
+coverage
+*.test.js
+*.spec.js
+
+# npm and yarn files
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Optional npm cache
+.npm
+
+# Build directories
+dist
+build

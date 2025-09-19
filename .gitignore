@@ -117,7 +117,9 @@ docker-compose.override.yml
 # 🌍 Environment and Config Files
 ########################################
 .env
+.token
 .env.*
+.htpasswd
 vault-agent/config/approle/secret_id
 vault-agent/config/approle/role_id
 vault-agent/output/token

@@ -1,0 +1,36 @@
+services:
+  nodeapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: booklib-node
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      LOG_LEVEL: DEBUG
+      VAULT_ADDR: "http://host.docker.internal:8200"
+      VAULT_TOKEN: "${VAULT_TOKEN?export VAULT_TOKEN before compose up}"
+      KV_MOUNT: kv
+      KV_PATH: booklib/api
+      KV_FIELD: password
+      TRANSIT_KEY: booklib-aes
+      CIPHER_FIELD: ciphertext
+      APIKEY_KV_MOUNT: kv
+      APIKEY_KV_PATH: booklib/api-auth
+      APIKEY_FIELD: password
+      APIKEY_CIPHER_FIELD: ciphertext
+      WATCH_RENDERED: "false"
+    ports:
+      - "3001:3001"
+
+  nginx:
+    image: nginx:1.29-alpine
+    container_name: key_rotation-nginx-1
+    depends_on:
+      - nodeapp
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./status:/usr/share/nginx/html/status:ro
+      - ./nginx/booklib.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/htpasswd/.htpasswd:ro
