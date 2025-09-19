@@ -11,12 +11,6 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// New env for API key path (separate from your demo KV_PATH)
-const APIKEY_KV_MOUNT = process.env.APIKEY_KV_MOUNT || 'kv';
-const APIKEY_KV_PATH  = process.env.APIKEY_KV_PATH  || 'booklib/api-auth';
-const APIKEY_FIELD    = process.env.APIKEY_FIELD    || 'password';
-const APIKEY_CIPHER_FIELD = process.env.APIKEY_CIPHER_FIELD || 'ciphertext';
-
 /* ---------------- Logging ---------------- */
 const LOG_LEVEL = (process.env.LOG_LEVEL || 'INFO').toUpperCase();
 function log(level, msg, extra) {
@@ -27,23 +21,38 @@ function log(level, msg, extra) {
 }
 function mask(value) {
   if (!value || typeof value !== 'string') return '';
-  return value.length > 6 ? `${value.slice(0,3)}***${value.slice(-3)}` : `${value[0] || '*'}***`;
+  return value.length > 6
+    ? `${value.slice(0,3)}***${value.slice(-3)}`
+    : `${value[0] || '*'}***`;
+}
+function maskMiddle(s, keep = 3) {
+  if (!s || typeof s !== 'string') return '';
+  if (s.length <= keep * 2) return s.replace(/./g, '*');
+  return s.slice(0, keep) + '***' + s.slice(-keep);
 }
 const sha256 = (s) => crypto.createHash('sha256').update(s || '').digest('hex');
 
 /* ---------------- Config ---------------- */
-const METHOD            = (process.env.METHOD || 'VAULT').toUpperCase(); // AXIOS | VAULT
-const VAULT_ADDR        = process.env.VAULT_ADDR;
-const VAULT_TOKEN       = process.env.VAULT_TOKEN;
-const KV_MOUNT          = process.env.KV_MOUNT || 'kv';
-const KV_PATH           = process.env.KV_PATH  || 'booklib/api';
-const KV_FIELD          = process.env.KV_FIELD || 'password';
-const TRANSIT_KEY       = process.env.TRANSIT_KEY || ''; // if set, decrypt ciphertext
-const CIPHER_FIELD      = process.env.CIPHER_FIELD || 'ciphertext';
-const AGENT_RENDERED    = process.env.AGENT_RENDERED || './rendered/booklib.env';
-const POLL_MS           = Number(process.env.POLL_MS || 5000);
+const METHOD              = (process.env.METHOD || 'VAULT').toUpperCase(); // AXIOS | VAULT
+const VAULT_ADDR          = process.env.VAULT_ADDR;
+const VAULT_TOKEN         = process.env.VAULT_TOKEN;
+// Demo KV path
+const KV_MOUNT            = process.env.KV_MOUNT || 'kv';
+const KV_PATH             = process.env.KV_PATH  || 'booklib/api';
+const KV_FIELD            = process.env.KV_FIELD || 'password';
+const TRANSIT_KEY         = process.env.TRANSIT_KEY || ''; // if set, decrypt ciphertext
+const CIPHER_FIELD        = process.env.CIPHER_FIELD || 'ciphertext';
+// Rendered-file settings (optional, no agent)
+const AGENT_RENDERED      = process.env.AGENT_RENDERED || './rendered/booklib.env';
+const POLL_MS             = Number(process.env.POLL_MS || 5000);
 const AUTO_WRITE_RENDERED = String(process.env.AUTO_WRITE_RENDERED || 'false').toLowerCase() === 'true';
 const WATCH_RENDERED      = String(process.env.WATCH_RENDERED || 'true').toLowerCase() === 'true';
+
+// API key KV path (separate)
+const APIKEY_KV_MOUNT       = process.env.APIKEY_KV_MOUNT || 'kv';
+const APIKEY_KV_PATH        = process.env.APIKEY_KV_PATH  || 'booklib/api-auth';
+const APIKEY_FIELD          = process.env.APIKEY_FIELD    || 'password';
+const APIKEY_CIPHER_FIELD   = process.env.APIKEY_CIPHER_FIELD || 'ciphertext';
 
 if (!VAULT_ADDR) {
   console.error('Missing VAULT_ADDR in env');
@@ -90,12 +99,6 @@ if (METHOD === 'AXIOS') {
   log('INFO', 'Vault client using VAULT fetch');
 }
 
-// Dedicated KV reader for the API key path
-async function readApiKeyKvRaw() {
-  const data = await vaultFetch(`/v1/${APIKEY_KV_MOUNT}/data/${APIKEY_KV_PATH}`);
-  return data.data; // { data, metadata }
-}
-
 /* ---------------- Vault helpers ---------------- */
 async function readKvRaw() {
   // KV v2 GET: /v1/<mount>/data/<path>
@@ -110,37 +113,128 @@ async function transitDecrypt(ciphertext) {
   const b64 = data.data.plaintext;
   return Buffer.from(b64, 'base64').toString('utf8');
 }
+async function readApiKeyKvRaw() {
+  const data = await vaultFetch(`/v1/${APIKEY_KV_MOUNT}/data/${APIKEY_KV_PATH}`);
+  return data.data; // { data, metadata }
+}
 
-// AFTER your helpers (readKvRaw, transitDecrypt, etc.) and BEFORE routes, start the refresher:
+/* ---------------- Demo telemetry (for status page) ---------------- */
+const demoState = {
+  apiKey: { currentMasked: '', prevMasked: '' },
+  kv: { version: 0, lastUpdate: null },
+  transit: { previewMasked: '', lastUpdate: null },
+  startedAt: new Date().toISOString(),
+};
+
+/* ---------------- Start API key refresher ---------------- */
 startApiKeyRefresher({
   readApiKeyKvRaw,
-  transitDecrypt,               // reuse from your server.js
+  transitDecrypt,
   APIKEY_FIELD,
   APIKEY_CIPHER_FIELD,
   TRANSIT_KEY,
-  log                           // reuse your log()
+  log
 });
 
+// (Optional) helper to fetch current/prev keys from refresher
+async function getKeys() {
+  const { __debug_getKeys } = await import('./apiKeyAuth.js');
+  return __debug_getKeys();
+}
+
 /* ---------------- Routes ---------------- */
-// Example protected route
+app.get('/api/status', async (_req, res) => {
+  try {
+    const { currentKey, previousKey, lastVersion } = await getKeys();
+    // update demoState.apiKey here as well (so UI reflects the refresher)
+    demoState.apiKey.currentMasked = maskMiddle(currentKey || '');
+    demoState.apiKey.prevMasked = maskMiddle(previousKey || '');
+
+    return res.json({
+      service: 'booklib',
+      api_key: {
+        version: lastVersion || null,
+        current_preview: mask(currentKey),
+        previous_preview: previousKey ? mask(previousKey) : ''
+      },
+      time: new Date().toISOString()
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'status unavailable', detail: e.message || String(e) });
+  }
+});
+
+// Read-only telemetry for the status page
+app.get('/api/demo-state', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    // API key (from refresher state)
+    const { currentKey, previousKey, lastVersion } = await getKeys();
+    demoState.apiKey.currentMasked = maskMiddle(currentKey || '');
+    demoState.apiKey.prevMasked = maskMiddle(previousKey || '');
+
+    // KV (fresh read to reflect latest Vault)
+    let kv = { version: null, created: null, updated: null, preview: '', lastUpdate: null };
+    try {
+      const payload = await readKvRaw();
+      const d = payload.data || {};
+      kv.version = payload.metadata?.version ?? null;
+      kv.created = payload.metadata?.created_time ?? null;
+      kv.updated = payload.metadata?.updated_time ?? null;
+      kv.lastUpdate = demoState.kv.lastUpdate || kv.updated || kv.created || null;
+
+      if (d[KV_FIELD]) {
+        kv.preview = `kv:${mask(d[KV_FIELD])}`;
+      } else if (TRANSIT_KEY && d[CIPHER_FIELD]) {
+        const plain = await transitDecrypt(d[CIPHER_FIELD]);
+        kv.preview = `transit:${mask(plain)}`;
+      }
+    } catch (err) {
+      kv.error = err?.message || String(err);
+    }
+
+    return res.json({
+      ok: true,
+      now: new Date().toISOString(),
+      apiKey: {
+        version: lastVersion || null,
+        currentMasked: demoState.apiKey.currentMasked,
+        prevMasked: demoState.apiKey.prevMasked
+      },
+      kv,
+      transit: {
+        previewMasked: demoState.transit.previewMasked,
+        lastUpdate: demoState.transit.lastUpdate
+      }
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) });
+  }
+});
+
+// Example protected route (uses API key)
 app.get('/protected', apiKeyMiddleware, (_req, res) => {
   res.json({ ok: true, msg: 'You passed API key auth.' });
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+// Health
+// app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get(['/health', '/api/health'], (_req, res) => res.json({ ok: true }));
 
+// Demo: read Vault KV (plaintext or transit)
 app.get('/secret', async (_req, res) => {
   try {
-    const payload = await readKvRaw();      // { data, metadata }
+    const payload = await readKvRaw();
     const d = payload.data || {};
 
     if (d[KV_FIELD]) {
-      log('INFO', 'KV read (plaintext)', { field: KV_FIELD, value: mask(d[KV_FIELD]) });
+      const plain = d[KV_FIELD];
+      log('INFO', 'KV read (plaintext)', { field: KV_FIELD, value: mask(plain) });
       return res.json({
         mode: 'kv-plaintext',
         version: payload.metadata?.version,
         field: KV_FIELD,
-        value_preview: mask(d[KV_FIELD])
+        value_preview: mask(plain)
       });
     }
 
@@ -162,6 +256,7 @@ app.get('/secret', async (_req, res) => {
   }
 });
 
+// Agent-rendered file reader (kept for completeness)
 app.get('/agent-secret', (_req, res) => {
   try {
     const raw = fs.readFileSync(AGENT_RENDERED, 'utf8');
@@ -180,8 +275,7 @@ app.get('/agent-secret', (_req, res) => {
   }
 });
 
-/* ---------------- Live rotation visibility ---------------- */
-// A) KV polling
+/* ---------------- KV polling (updates demoState) ---------------- */
 let lastKvPreview = '';
 let lastKvRaw = '';
 async function pollKv() {
@@ -204,7 +298,13 @@ async function pollKv() {
       lastKvPreview = preview;
     }
 
-    // Only write rendered file if explicitly enabled (no-Agent mode)
+    // ---- update demo telemetry (for UI) ----
+    demoState.kv.version = Number(payload.metadata?.version || demoState.kv.version || 0);
+    demoState.kv.lastUpdate = new Date().toISOString();
+    demoState.transit.previewMasked = maskMiddle(plain || '');
+    demoState.transit.lastUpdate = new Date().toISOString();
+
+    // Optional: write a rendered env file (no-agent mode)
     if (AUTO_WRITE_RENDERED && plain && plain !== lastKvRaw) {
       writeRenderedEnv(plain, {
         version: payload.metadata?.version,
@@ -222,7 +322,7 @@ if (POLL_MS > 0) {
   setInterval(pollKv, POLL_MS);
 }
 
-// B) Agent watcher (debounced + PASSWORD-hash; auto-attach when file appears)
+/* ---------------- Agent watcher helpers (kept; optional) ---------------- */
 function parseEnvFile(raw) {
   return Object.fromEntries(
     raw.split('\n')
@@ -251,7 +351,7 @@ function attachAgentWatcher(filePath) {
         const env = parseEnvFile(raw);
         const pw = env.PASSWORD || '';
         const curHash = sha256(pw);
-        if (curHash === lastPwHash) return; // no real secret change
+        if (curHash === lastPwHash) return;
         lastPwHash = curHash;
         if (pw) {
           log('DEBUG', 'Agent file rotated', {
@@ -265,10 +365,9 @@ function attachAgentWatcher(filePath) {
       }
     };
 
-    // Initial read (seed the hash and avoid double-log)
+    // initial read
     readAndMaybeLog();
 
-    // Debounce bursty FS events
     fs.watch(filePath, { persistent: true }, () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(readAndMaybeLog, 200);
@@ -279,7 +378,7 @@ function attachAgentWatcher(filePath) {
   }
 }
 (function initAgentWatch() {
-  if (! WATCH_RENDERED) {
+  if (!WATCH_RENDERED) {
     log('INFO', 'Agent watch disabled by config (WATCH_RENDERED=false)');
     return;
   }

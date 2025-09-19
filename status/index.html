@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Booklib Demo Status</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; }
+    .wrap { max-width: 900px; margin: 56px auto; padding: 0 20px; }
+    .card { border: 1px solid #ccc; border-radius: 12px; padding: 20px; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .muted { color: #777; }
+    pre { background: rgba(127,127,127,.12); padding: 12px; border-radius: 8px; overflow: auto; }
+    .ok { color: #0a7c2f; font-weight: 600; }
+    .bad { color: #b00020; font-weight: 600; }
+    .row { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: baseline; }
+    .btn { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer; background: #f6f6f6; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Booklib Demo</h1>
+      <p class="muted">Nginx ↔ Express is up. This page is behind Basic Auth.</p>
+
+      <div class="row"><div>API Health:</div><div id="apiHealth">Checking…</div></div>
+
+      <hr style="margin:16px 0; opacity:.25">
+
+      <div class="row"><div>KV Version:</div><div id="kvVersion">—</div></div>
+      <div class="row"><div>KV Last Update:</div><div id="kvUpdated">—</div></div>
+      <div class="row"><div>KV Preview:</div><div id="kvPreview">—</div></div>
+      <div class="row"><div>API Key (masked):</div><div id="apiKeyMasked">—</div></div>
+      <div class="row"><div>Prev Key (masked):</div><div id="apiKeyPrevMasked">—</div></div>
+      <div class="row"><div>Transit Preview:</div><div id="transitPreview">—</div></div>
+
+      <div style="margin-top:16px;">
+        <button class="btn" id="refreshBtn">Refresh</button>
+      </div>
+
+      <h3>Raw Response</h3>
+      <pre id="raw">{}</pre>
+    </div>
+  </div>
+
+  <script>
+    async function checkHealth() {
+      const el = document.getElementById('apiHealth');
+      try {
+        const res = await fetch('/api/health', { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+        el.innerHTML = res.ok ? '<span class="ok">OK</span>' : '<span class="bad">DOWN</span>';
+      } catch {
+        el.innerHTML = '<span class="bad">ERROR</span>';
+      }
+    }
+
+    async function fetchDemo() {
+      const raw = document.getElementById('raw');
+      const set = (id, v) => document.getElementById(id).textContent = (v ?? '—');
+
+      try {
+        const res = await fetch('/api/demo-state', { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+        const text = await res.text();
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          raw.textContent = `Non-JSON response (status ${res.status}):\n\n` + text;
+          return;
+        }
+
+        raw.textContent = JSON.stringify(data, null, 2);
+
+        set('kvVersion', data.kv?.version);
+        set('kvUpdated', data.kv?.lastUpdate || data.kv?.updated || data.kv?.created);
+        set('kvPreview', data.kv?.preview);
+        set('apiKeyMasked', data.apiKey?.currentMasked);
+        set('apiKeyPrevMasked', data.apiKey?.prevMasked);
+        set('transitPreview', data.transit?.previewMasked || '');
+      } catch (e) {
+        raw.textContent = 'Request error: ' + String(e);
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      checkHealth();
+      fetchDemo();
+    });
+
+    checkHealth(); fetchDemo();
+    setInterval(fetchDemo, 4000);
+  </script>
+</body>
+</html>
