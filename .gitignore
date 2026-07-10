@@ -130,3 +130,5 @@ vault-agent/output/token
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.env
+rendered/
