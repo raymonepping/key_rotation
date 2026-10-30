@@ -131,6 +131,7 @@ vault-agent/output/token
 *.tfstate
 *.tfstate.backup
 *.env
+!config/defaults.env
 rendered/
 
 ########################################
@@ -150,3 +151,6 @@ booklib/node_modules/
 frontend/node_modules/
 frontend/dist/
 backups/
+
+# docker_inventory hibernation manifest (local)
+hibernate.yaml
