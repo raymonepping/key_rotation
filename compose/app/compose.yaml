@@ -1,0 +1,161 @@
+# compose/app/compose.yaml — the key_rotation application stack.
+#
+#   rotator      keeps the krot-booklib AppRole secret-id valid (Durin pattern)
+#   vault-agent  logs in with it; token file in the `agent-token` volume
+#   booklib      Node.js API; reads token file per request — no VAULT_TOKEN env var
+#   web          nginx: React SPA + HTTPS on 8443; /api proxied to booklib
+#
+# The only credential handed over by a human is the rotator's own, in
+# .secrets/vault/rotator/ (make rotator-bootstrap). Images are built by
+# `make app-build`. Needs vault-1 configured by Terraform.
+
+services:
+  # One-shot: chown named volumes to uid 100:1000 (rotator/agent) and ensure
+  # the token sink is writable by gid 1000 (booklib reads it).
+  volume-init:
+    image: ${ALPINE_IMAGE}
+    container_name: krot-app-volume-init
+    user: "0:0"
+    network_mode: none
+    entrypoint: ["/bin/sh", "-c", "chown 100:1000 /sink /approle && chmod 750 /sink && chmod 700 /approle && echo '[volume-init] done'"]
+    volumes:
+      - agent-token:/sink
+      - approle-app:/approle
+    restart: "no"
+
+  rotator:
+    image: ${VAULT_ENT_IMAGE}
+    container_name: krot-rotator
+    hostname: rotator
+    user: "100:1000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp, /home/vault]
+    entrypoint: ["/bin/sh", "/vault/rotator/rotator.sh"]
+    environment:
+      VAULT_ADDR: https://vault-1:8200
+      VAULT_CACERT: /vault/tls/ca-chain.pem
+      TARGET_ROLES: krot-booklib
+      ROTATOR_CREDS_DIR: /run/rotator
+      CHECK_INTERVAL_SECONDS: "60"
+      ROTATE_BELOW_FRACTION: "3"
+      WARN_IF_SHORTER_THAN: "7776000"
+    volumes:
+      - ../../vault-tls/ca-chain.pem:/vault/tls/ca-chain.pem:ro
+      - ../common/rotator:/vault/rotator:ro
+      - ../../.secrets/vault/rotator:/run/rotator:ro        # human-delivered credential
+      - approle-app:/run/approle                            # persistent: current secret-id
+    networks: [default]
+    restart: unless-stopped
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh /vault/rotator/healthcheck.sh"]
+      interval: 10s
+      timeout: 3s
+      start_period: 15s
+      retries: 5
+
+  vault-agent:
+    image: ${VAULT_ENT_IMAGE}
+    container_name: krot-vault-agent
+    hostname: vault-agent
+    user: "100:1000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp, /home/vault]
+    entrypoint: ["/bin/sh", "/vault/agent/entrypoint.sh"]
+    environment:
+      AGENT_NAME: krot-booklib
+      APPROLE_DIR: /run/approle/krot-booklib
+      TOKEN_FILE: /vault/secrets/token
+      VAULT_ADDR: https://vault-1:8200
+      VAULT_CACERT: /vault/tls/ca-chain.pem
+    volumes:
+      - ../../vault-tls/ca-chain.pem:/vault/tls/ca-chain.pem:ro
+      - ../common/agent/entrypoint.sh:/vault/agent/entrypoint.sh:ro
+      - ./agent/config.hcl:/vault/agent/config.hcl:ro
+      - approle-app:/run/approle:ro       # written by the rotator
+      - agent-token:/vault/secrets        # ephemeral: token sink
+    networks: [default]
+    restart: on-failure
+    depends_on:
+      rotator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /vault/secrets/token && VAULT_TOKEN=$$(cat /vault/secrets/token) vault token lookup >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+
+  booklib:
+    image: ${KROT_IMAGE_PREFIX}/booklib:${KROT_IMAGE_TAG}
+    container_name: krot-booklib
+    hostname: booklib
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      PORT: "3001"
+      VAULT_ADDR: https://vault-1:8200
+      VAULT_SEAL_ADDR: https://vault-s:8200
+      VAULT_TOKEN_FILE: /run/vault/token
+      VAULT_CACERT: /etc/krot/ca-chain.pem
+      NODE_EXTRA_CA_CERTS: /etc/krot/ca-chain.pem
+      KV_MOUNT: kv
+      KV_PATH: booklib/api
+      KV_FIELD: password
+      TRANSIT_KEY: booklib-aes
+      CIPHER_FIELD: ciphertext
+      APIKEY_KV_MOUNT: kv
+      APIKEY_KV_PATH: booklib/api-auth
+      APIKEY_FIELD: password
+    ports: ["127.0.0.1:${KROT_PORT_API}:3001"]
+    volumes:
+      - ../../vault-tls/ca-chain.pem:/etc/krot/ca-chain.pem:ro
+      - agent-token:/run/vault:ro          # the agent's token sink
+    networks: [default]
+    restart: unless-stopped
+    depends_on:
+      vault-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO/dev/null http://127.0.0.1:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+
+  web:
+    image: ${KROT_IMAGE_PREFIX}/frontend:${KROT_IMAGE_TAG}
+    container_name: krot-web
+    hostname: krot-web
+    user: "101:101"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    ports: ["127.0.0.1:${KROT_PORT_WEB}:8443"]
+    volumes:
+      - ../../vault-tls/web.crt:/etc/nginx/tls/web.crt:ro
+      - ../../vault-tls/web.key:/etc/nginx/tls/web.key:ro
+      - ../../vault-tls/ca-chain.pem:/etc/nginx/tls/ca-chain.pem:ro
+    networks: [default]
+    restart: unless-stopped
+    depends_on: [booklib]
+
+networks:
+  default:
+    name: krot-internal
+    external: true
+
+volumes:
+  agent-token: {}
+  approle-app:
+    labels: { io.krot.data: "true" }

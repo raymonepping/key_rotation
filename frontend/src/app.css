@@ -1,0 +1,664 @@
+/* ── Daylight Glass design system ────────────────────────────────────────────
+   Tokens and component styles for vault_portal.
+   Source of truth: see DESIGN.md at the project root.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/HankenGrotesk-VariableFont_wght.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("/fonts/JetBrainsMono-VariableFont_wght.woff2") format("woff2");
+}
+
+:root {
+  /* ── Ground, structure, ink ─────────────────────────────────────────────── */
+  --vr-ground:       #e9eef3;
+  --vr-mullion:      #aeb9c6;
+  --vr-ink:          #0f1a2a;
+  --vr-ink-2:        #3e4c5f;
+  --vr-ink-3:        #526073;
+  --vr-line:         rgb(15 26 42 / .11);
+  --vr-pane:         rgb(255 255 255 / .62);
+  --vr-pane-strong:  rgb(255 255 255 / .82);
+  --vr-well:         rgb(15 26 42 / .045);
+
+  /* ── State colours ──────────────────────────────────────────────────────── */
+  --vr-ok:           #0f766e;
+  --vr-ok-soft:      #ccfbf1;
+  --vr-denied:       #c81e1e;
+  --vr-denied-soft:  #fee2e2;
+  --vr-warn:         #b45309;
+  --vr-warn-soft:    #fef3c7;
+  --vr-authority:    #0369a1;
+  --vr-authority-soft: #e0f2fe;
+  --vr-cipher:       #6d28d9;
+  --vr-cipher-soft:  #ede9fe;
+
+  /* ── Shape ──────────────────────────────────────────────────────────────── */
+  --vr-radius-pane:    14px;
+  --vr-radius-control: 9px;
+  --vr-shadow:         0 2px 12px rgb(15 26 42 / .10), 0 1px 3px rgb(15 26 42 / .06);
+  --vr-pane-edge:      rgb(255 255 255 / .85);
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+  --vr-rail:    15.5rem;
+  --vr-gutter:  24px;
+  --vr-stack:   20px;
+  --vr-ease:    cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Tone map — used by .tone-* legend and ctx status ───────────────────── */
+  --tone-ok:        var(--vr-ok);
+  --tone-denied:    var(--vr-denied);
+  --tone-warn:      var(--vr-warn);
+  --tone-authority: var(--vr-authority);
+  --tone-cipher:    var(--vr-cipher);
+
+  /* ── Type ───────────────────────────────────────────────────────────────── */
+  --font-sans: "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  font-size: 15px;
+  font-family: var(--font-sans);
+  color: var(--vr-ink);
+  background-color: var(--vr-ground);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (min-width: 1024px) {
+  :root { --vr-gutter: 32px; }
+}
+
+/* ── Mullion grid (decorative background) ───────────────────────────────── */
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--vr-ground);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--vr-mullion) 0,
+      var(--vr-mullion) 1px,
+      transparent 1px,
+      transparent 180px
+    );
+  background-size: 180px 100%;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; color: var(--vr-ink); margin: 0 0 4px; }
+h2 { font-size: 1.05rem; font-weight: 700; color: var(--vr-ink); margin: 0 0 12px; }
+h3 { font-size: 0.9rem;  font-weight: 700; color: var(--vr-ink-2); margin: 0 0 10px; }
+p  { margin: 0 0 10px; color: var(--vr-ink-2); }
+small, .meta { font-size: 0.82rem; color: var(--vr-ink-3); }
+
+.mono, code, pre,
+textarea.mono-output,
+.cipher-output {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--vr-cipher);
+  word-break: break-all;
+}
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  background: var(--vr-pane-strong);
+  backdrop-filter: blur(22px) saturate(150%);
+  border-bottom: 1px solid var(--vr-line);
+  padding: 16px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-header h1 { color: var(--vr-ink); }
+.app-header .subtitle { color: var(--vr-ink-3); font-size: 0.85rem; margin-top: 2px; }
+
+.app-main {
+  flex: 1;
+  padding: 32px 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Panel stack (vertical flow, full-width) ────────────────────────────── */
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Operations grid (2-column, responsive) ─────────────────────────────── */
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 800px) {
+  .ops-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Panels (frosted glass panes) ───────────────────────────────────────── */
+.panel {
+  background: var(--vr-pane);
+  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-pane);
+  box-shadow: var(--vr-shadow);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.panel h2 { border-bottom: 1px solid var(--vr-line); padding-bottom: 10px; margin-bottom: 16px; }
+
+/* ── Role selector tabs ─────────────────────────────────────────────────── */
+.role-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: var(--vr-pane-strong);
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-pane);
+  padding: 8px;
+  box-shadow: var(--vr-shadow);
+}
+
+.role-selector button {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--vr-radius-control);
+  background: transparent;
+  color: var(--vr-ink-3);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(.16,1,.3,1);
+}
+
+.role-selector button:hover {
+  background: var(--vr-pane);
+  color: var(--vr-ink);
+}
+
+/* Active role uses state colour — this is an authority claim */
+.role-selector button.active[data-role="doctor"] {
+  background: var(--vr-authority-soft);
+  border-color: var(--vr-authority);
+  color: var(--vr-authority);
+}
+.role-selector button.active[data-role="nurse"] {
+  background: var(--vr-ok-soft);
+  border-color: var(--vr-ok);
+  color: var(--vr-ok);
+}
+.role-selector button.active[data-role="secops"] {
+  background: var(--vr-warn-soft);
+  border-color: var(--vr-warn);
+  color: var(--vr-warn);
+}
+
+/* ── Form elements ──────────────────────────────────────────────────────── */
+.field-group {
+  margin-bottom: 16px;
+}
+.field-group label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--vr-ink-3);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--vr-well);
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-control);
+  color: var(--vr-ink);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+  border-color: var(--vr-authority);
+  box-shadow: 0 0 0 2px var(--vr-authority-soft);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+button {
+  padding: 10px 18px;
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-control);
+  background: var(--vr-ink);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(.16,1,.3,1);
+}
+
+button:hover:not(:disabled) {
+  background: var(--vr-ink-2);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--vr-authority);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.quiet {
+  background: var(--vr-pane);
+  color: var(--vr-ink);
+  border-color: var(--vr-line);
+}
+
+button.quiet:hover:not(:disabled) {
+  background: var(--vr-pane-strong);
+}
+
+button.danger {
+  background: var(--vr-denied);
+  border-color: var(--vr-denied);
+}
+
+button.danger:hover:not(:disabled) {
+  background: #a61a1a;
+}
+
+/* ── Output well (cipher output) ────────────────────────────────────────── */
+.output-well {
+  background: var(--vr-well);
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-control);
+  padding: 12px;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--vr-cipher);
+  word-break: break-all;
+  min-height: 48px;
+  white-space: pre-wrap;
+}
+
+.output-well.ok     { color: var(--vr-ok);      background: var(--vr-ok-soft);      border-color: var(--vr-ok); }
+.output-well.denied { color: var(--vr-denied);  background: var(--vr-denied-soft);  border-color: var(--vr-denied); }
+.output-well.warn   { color: var(--vr-warn);    background: var(--vr-warn-soft);    border-color: var(--vr-warn); }
+
+/* ── Status pill ────────────────────────────────────────────────────────── */
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.pill.ok      { background: var(--vr-ok-soft);      color: var(--vr-ok); }
+.pill.denied  { background: var(--vr-denied-soft);  color: var(--vr-denied); }
+.pill.warn    { background: var(--vr-warn-soft);     color: var(--vr-warn); }
+.pill.cipher  { background: var(--vr-cipher-soft);  color: var(--vr-cipher); }
+.pill.authority { background: var(--vr-authority-soft); color: var(--vr-authority); }
+
+/* ── Audit log ──────────────────────────────────────────────────────────── */
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.audit-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--vr-line);
+  font-size: 0.88rem;
+}
+
+.audit-item:last-child { border-bottom: none; }
+
+.audit-time {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--vr-ink-3);
+  white-space: nowrap;
+}
+
+.audit-action { color: var(--vr-ink); }
+.audit-namespace { color: var(--vr-ink-3); font-size: 0.82rem; font-family: var(--font-mono); }
+
+/* ── Key metadata card ──────────────────────────────────────────────────── */
+.key-metadata {
+  background: var(--vr-well);
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-control);
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.key-metadata dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+}
+
+.key-metadata dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--vr-ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.key-metadata dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--vr-cipher);
+}
+
+/* ── Certificate list ───────────────────────────────────────────────────── */
+.cert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cert-item {
+  padding: 10px 12px;
+  background: var(--vr-well);
+  border: 1px solid var(--vr-line);
+  border-radius: var(--vr-radius-control);
+  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--vr-cipher);
+}
+
+/* ── Namespace badge ────────────────────────────────────────────────────── */
+.namespace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--vr-authority);
+  background: var(--vr-authority-soft);
+  border: 1px solid var(--vr-authority);
+  border-radius: var(--vr-radius-control);
+  padding: 2px 8px;
+  margin-bottom: 12px;
+}
+
+/* ── Loading states ─────────────────────────────────────────────────────── */
+.loading {
+  color: var(--vr-ink-3);
+  font-style: italic;
+}
+
+/* ── Error message ──────────────────────────────────────────────────────── */
+.error-msg {
+  background: var(--vr-denied-soft);
+  color: var(--vr-denied);
+  border: 1px solid var(--vr-denied);
+  border-radius: var(--vr-radius-control);
+  padding: 10px 14px;
+  margin-top: 12px;
+  font-size: 0.88rem;
+  font-family: var(--font-mono);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .app-main { padding: 16px; }
+  .role-selector { flex-direction: column; }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Shell — rail, top bar, footer
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shell wrapper ───────────────────────────────────────────────────────── */
+.shell {
+  min-height: 100vh;
+  padding-left: var(--vr-rail);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Rail (fixed left sidebar) ───────────────────────────────────────────── */
+.rail {
+  position: fixed; inset: 0 auto 0 0; z-index: 60;
+  width: var(--vr-rail);
+  display: flex; flex-direction: column;
+  background: var(--vr-pane-strong);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border-right: 1px solid var(--vr-line);
+  box-shadow: inset -1px 0 0 var(--vr-pane-edge);
+  overflow-y: auto;
+  transition: transform 300ms var(--vr-ease);
+}
+
+.brand {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 1.15rem 1.15rem 0.9rem;
+  text-decoration: none; color: var(--vr-ink);
+}
+.brand-mark { width: 1.9rem; height: 1.9rem; flex: none; }
+.brand-name  { display: block; font-weight: 800; font-size: 1.02rem; letter-spacing: -0.025em; line-height: 1.1; }
+.brand-sub   { display: block; font-size: 0.8rem; color: var(--vr-ink-3); font-weight: 500; }
+
+.rail-group       { padding: 0.5rem 0.6rem 0.1rem; }
+.rail-group-label { padding: 0 0.6rem 0.3rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--vr-ink-3); }
+
+.rail-link {
+  display: flex; align-items: center; gap: 0.6rem;
+  min-height: 2.25rem; padding: 0.33rem 0.6rem;
+  border-radius: var(--vr-radius-control);
+  width: 100%; border: none; background: transparent;
+  color: var(--vr-ink-2); text-decoration: none;
+  font-family: var(--font-sans); font-size: 0.93rem; font-weight: 500;
+  cursor: pointer; text-align: left;
+  transition: background-color 160ms var(--vr-ease), color 160ms;
+}
+.rail-icon {
+  width: 1.05rem; height: 1.05rem; flex: none;
+  stroke: currentColor; fill: none; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; opacity: 0.8;
+}
+.rail-link:hover          { background: rgb(15 26 42 / 0.055); color: var(--vr-ink); }
+.rail-link.current        { background: var(--vr-ink); color: #fff; font-weight: 600; }
+.rail-link.current .rail-icon { opacity: 1; }
+
+/* Active role — authority/ok/warn tint when not using ink bg */
+.rail-link.current[data-role="doctor"] { background: var(--vr-authority); }
+.rail-link.current[data-role="nurse"]  { background: var(--vr-ok); }
+.rail-link.current[data-role="secops"] { background: var(--vr-warn); }
+
+.rail-hint  { margin-left: auto; font-size: 0.78rem; font-weight: 500; opacity: 0.7; font-family: var(--font-mono); }
+.rail-link.ext::after { content: "↗"; margin-left: auto; font-size: 0.8rem; opacity: 0.55; }
+
+.rail-foot {
+  margin-top: auto; padding: 0.8rem 1.15rem 0.9rem;
+  border-top: 1px solid var(--vr-line);
+  font-size: 0.8rem; color: var(--vr-ink-3);
+}
+.legend { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.legend span { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+.legend i    { width: 0.55rem; height: 0.55rem; border-radius: 999px; flex: none; background: var(--tone, var(--vr-ink-3)); }
+
+/* tone-* used by legend dots and ctx status colours */
+.tone-ok        { --tone: var(--vr-ok);        color: var(--vr-ok); }
+.tone-denied    { --tone: var(--vr-denied);    color: var(--vr-denied); }
+.tone-warn      { --tone: var(--vr-warn);      color: var(--vr-warn); }
+.tone-authority { --tone: var(--vr-authority); color: var(--vr-authority); }
+.tone-cipher    { --tone: var(--vr-cipher);    color: var(--vr-cipher); }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.bar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap;
+  min-height: 3.6rem; padding: 0.55rem var(--vr-gutter);
+  background: var(--vr-pane);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border-bottom: 1px solid var(--vr-line);
+  box-shadow: inset 0 1px 0 var(--vr-pane-edge);
+}
+.bar-title   { font-size: 1.22rem; font-weight: 700; letter-spacing: -0.022em; line-height: 1.15; }
+.bar-sub     { font-size: 0.82rem; color: var(--vr-ink-3); font-weight: 500; }
+.bar-context { display: flex; align-items: center; gap: 1.2rem; margin-left: auto; }
+
+.ctx         { display: flex; flex-direction: column; gap: 0.1rem; }
+.ctx-label   { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--vr-ink-3); line-height: 1.1; }
+.ctx-value   { font-size: 0.9rem; font-weight: 650; color: var(--tone, var(--vr-ink)); display: flex; align-items: center; gap: 0.4rem; }
+.ctx-value::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: currentColor; }
+.ctx-sep     { width: 1px; height: 1.9rem; background: var(--vr-line); }
+
+.menu-btn {
+  display: none; align-items: center; justify-content: center;
+  width: 2.4rem; height: 2.4rem;
+  border: 1px solid var(--vr-line); border-radius: var(--vr-radius-control);
+  background: var(--vr-pane-strong); color: var(--vr-ink); cursor: pointer;
+}
+.menu-btn svg { width: 1.1rem; height: 1.1rem; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+.scrim {
+  display: none; position: fixed; inset: 0; z-index: 50;
+  background: rgb(15 26 42 / 0.22);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  border: 0; padding: 0; cursor: default;
+}
+
+/* ── Main content area ───────────────────────────────────────────────────── */
+.main {
+  flex: 1; width: 100%;
+  max-width: 84rem;
+  padding: 1.6rem var(--vr-gutter) 2.4rem;
+  display: grid; gap: var(--vr-stack); align-content: start;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.footer {
+  background: var(--vr-pane-strong);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--vr-line);
+  color: var(--vr-ink-3); font-size: 0.82rem;
+}
+.footer-inner {
+  max-width: 84rem;
+  padding: 1rem var(--vr-gutter);
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1rem;
+  align-items: center; justify-content: space-between;
+}
+.footer-words span + span::before { content: "·"; margin: 0 0.5rem; color: var(--vr-mullion); }
+.footer-quote { font-style: italic; color: var(--vr-ink-2); }
+
+/* Sig-name shimmer (from Durin / secret_rotation) */
+.sig-name {
+  position: relative; display: inline-block;
+  border-radius: 3px; cursor: default; font-weight: 600;
+  color: var(--vr-ink-2);
+  transition: color 180ms var(--vr-ease);
+}
+.sig-name:hover, .sig-name:focus-visible { outline: none; color: var(--vr-ok); }
+.sig-name::after {
+  content: attr(data-name);
+  position: absolute; inset: 0;
+  color: transparent;
+  background: linear-gradient(100deg, transparent 42%, rgb(255 255 255 / 0.95) 50%, transparent 58%);
+  background-size: 260% 100%; background-position: 130% 0;
+  -webkit-background-clip: text; background-clip: text;
+  opacity: 0; pointer-events: none;
+}
+.sig-name:hover::after, .sig-name:focus-visible::after { animation: sig-clear 0.9s var(--vr-ease); }
+@keyframes sig-clear {
+  0%       { background-position: 130% 0; opacity: 0; }
+  12%, 88% { opacity: 1; }
+  100%     { background-position: -30% 0; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .sig-name::after { display: none; } }
+
+/* ── Narrow screens: rail becomes a sheet ────────────────────────────────── */
+@media (max-width: 1023px) {
+  .shell        { padding-left: 0; }
+  .rail         { transform: translateX(-100%); box-shadow: var(--vr-shadow); }
+  .shell.open .rail  { transform: none; }
+  .shell.open .scrim { display: block; }
+  .menu-btn     { display: inline-flex; }
+  .bar          { gap: 0.7rem; }
+  .bar-sub      { display: none; }
+  .bar-context  { gap: 0.8rem; }
+  .ctx-sep, .ctx-hide-narrow { display: none; }
+}
+
+/* panel-stack and ops-grid: use main's grid gap instead of own margin */
+.main .panel-stack { gap: var(--vr-stack); }
+.main .ops-grid    { gap: var(--vr-stack); }

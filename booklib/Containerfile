@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+ARG NODE_IMAGE=docker.io/library/node:22-alpine
+
+# ── Stage 1: deps ──────────────────────────────────────────────────────────────
+FROM ${NODE_IMAGE} AS deps
+WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev
+
+# ── Stage 2: runtime ───────────────────────────────────────────────────────────
+FROM ${NODE_IMAGE} AS runtime
+WORKDIR /app
+
+# Non-root user (node uid=1000 already exists in node:alpine)
+USER 1000:1000
+
+COPY --from=deps --chown=1000:1000 /app/node_modules ./node_modules
+COPY --chown=1000:1000 server.js apiKeyAuth.js package.json ./
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=6 --start-period=20s \
+  CMD wget -qO/dev/null http://127.0.0.1:3001/health || exit 1
+
+CMD ["node", "server.js"]
